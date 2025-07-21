@@ -1,0 +1,1258 @@
+// ==نص المستخدم==
+// @name ScarzBots
+// @الإصدار 1
+// @description Bots for Agar.io - العمل على امتداد دلتا
+// @icon https://deltav4.gitlab.io/favicon.ico
+// @match *://agar.io/*
+// @run-at document-start
+// @grant لا شيء
+// ==/نص المستخدم==
+
+(وظيفة() {
+    'استخدم صارمًا'؛
+
+    ثابت CLIENTS_MAX_BOTS = 9999؛
+
+    فئة الكيان {
+        المُنشئ() {
+            هذا.id = 0؛
+            هذا.x = 0؛
+            هذا.y = 0؛
+            هذه البيانات الإضافية = 0؛
+            هذه الأعلام = 0؛
+            هذا.الحجم = 0؛
+            هذا.الاسم = "";
+            هذا.هوفيروس = خطأ؛
+            هذا.isPellet = خطأ؛
+            هذا.هو صديق = خطأ؛
+        }
+    }
+
+    فئة القارئ {
+        منشئ(المخزن المؤقت) {
+            هذا.dataView = جديد DataView(المخزن المؤقت)؛
+            هذا.byteOffset = 0؛
+        }
+        readUint8() { إرجاع هذا.dataView.getUint8(هذا.byteOffset++); }
+        readUint16() { قيمة ثابتة = this.dataView.getUint16(this.byteOffset, true); this.byteOffset += 2; قيمة الإرجاع؛ }
+        readInt32() { قيمة ثابتة = this.dataView.getInt32(this.byteOffset, true); this.byteOffset += 4؛ قيمة الإرجاع؛ }
+        readUint32() { قيمة ثابتة = this.dataView.getUint32(this.byteOffset, true); this.byteOffset += 4; قيمة الإرجاع؛ }
+        readFloat32() { قيمة ثابتة = this.dataView.getFloat32(this.byteOffset, true); this.byteOffset += 4; قيمة الإرجاع؛ }
+        readFloat64() { قيمة ثابتة = this.dataView.getFloat64(this.byteOffset, true); this.byteOffset += 8; قيمة الإرجاع؛ }
+        readString() {
+            دع النتيجة = "";
+            ل (؛؛) {
+                ثابت charCode = هذا.readUint8();
+                إذا (charCode === 0) فواصل؛
+                النتيجة += String.fromCharCode(charCode)؛
+            }
+            نتيجة العودة؛
+        }
+        readUTF8String() {
+            دع البايتات = []؛
+            دع البايت؛
+            بالنسبة إلى (؛ (بايت = this.readUint8()) !== 0؛) bytes.push(بايت)؛
+            إرجاع TextDecoder جديد("utf-8").decode(new Uint8Array(بايت));
+        }
+    }
+
+    فئة الكاتب {
+        المنشئ(الحجم) {
+            هذا.الحجم = الحجم || 1000؛
+            هذا.dataView = جديد DataView(جديد ArrayBuffer(هذا.الحجم));
+            هذا.byteOffset = 0؛
+        }
+        ضمان السعة (الحجم الإضافي) {
+            إذا (هذا.byteOffset + additionalSize > هذا.dataView.buffer.byteLength) {
+                ثابت newBuffer = جديد ArrayBuffer(هذا.dataView.buffer.byteLength * 2)؛
+                مجموعة Uint8Array جديدة (newBuffer).set (مجموعة Uint8Array جديدة (this.dataView.buffer));
+                هذا.dataView = new DataView(newBuffer);
+                هذا.الحجم = newBuffer.byteLength؛
+            }
+        }
+        writeUint8(القيمة) {
+            هذا.ضمان السعة(1)؛
+            هذا.dataView.setUint8(هذا.byteOffset++، القيمة)؛
+        }
+        writeInt16(القيمة) {
+            هذا.ضمان السعة(2)؛
+            this.dataView.setInt16(this.byteOffset، القيمة، صحيح)؛
+            هذا.byteOffset += 2؛
+        }
+        writeUint16(القيمة) {
+            هذا.ضمان السعة(2)؛
+            هذا.dataView.setUint16(هذا.byteOffset، القيمة، صحيح)؛
+            هذا.byteOffset += 2؛
+        }
+        writeInt32(القيمة) {
+            هذا.ضمان السعة(4)؛
+            this.dataView.setInt32(this.byteOffset، القيمة، صحيح)؛
+            هذا.byteOffset += 4؛
+        }
+        writeUint32(القيمة) {
+            هذا.ضمان السعة(4)؛
+            هذا.dataView.setUint32(هذا.byteOffset، القيمة، صحيح)؛
+            هذا.byteOffset += 4؛
+        }
+        writeFloat64(القيمة) {
+            هذا.ضمان السعة(8)؛
+            هذا.dataView.setFloat64(هذا.byteOffset، القيمة، صحيح)؛
+            هذا.byteOffset += 8؛
+        }
+        اكتب سلسلة (str) {
+            هذا.ضمان السعة(str.length + 1)؛
+            بالنسبة إلى (دع i = 0؛ i < str.length؛ i++) {
+                هذا.writeUint8(str.charCodeAt(i));
+            }
+            هذا.writeUint8(0)؛
+        }
+        اكتب String16(str) {
+            هذا.ضمان السعة((طول السلسلة + 1) * 2);
+            بالنسبة إلى (دع i = 0؛ i < str.length؛ i++) {
+                هذا.writeUint16(str.charCodeAt(i));
+            }
+            هذا.writeUint16(0)؛
+        }
+        إلى المخزن المؤقت () {
+            إرجاع this.dataView.buffer.slice(0, this.byteOffset);
+        }
+    }
+
+    فئة بوت {
+        منشئ(التكوين) {
+            هذا.config = config؛
+            هذا.ws = لا شيء؛
+            هذا.offsetX = 0؛
+            هذا.offsetY = 0؛
+            هذا.moveInt = null؛
+            هذا.توقف = خطأ؛
+            هذا.isAlive = خطأ؛
+            هذا.متصل = خطأ؛
+            هذا.playerCells = []؛
+            هذا.مفتاح التشفير = 0؛
+            هذا.decryptionKey = 0؛
+            هذا.serverVersion = null؛
+            هذا.followMouse = خطأ؛
+            هذا.myCellIDs = []؛
+            هذا.errorTimeout = null؛
+            هذا.إصدار العميل = 31116؛
+            هذا.إصدار البروتوكول = 23؛
+            هذا.reconnectTimeout = null؛
+            this.followMouseTimeout = null؛
+            هذا.موضع اللاعب = {x: 0، y: 0}؛
+            هذا.isReconnecting = false؛
+            هذا.lastActiveTime = Date.now();
+            هذه المحاولات = 0؛
+            هذا.maxConnectionAttempts = 8؛
+            هذه.ghostCells = [];
+            هذا.targetX = null؛
+            هذا.targetY = null؛
+            ثابت اسم الإدخال = document.querySelector(".scarz-nick-input");
+            ثابت saveName = localStorage.getItem("scarz-bot-name");
+            هذا.الاسم = اسم الإدخال؟ (اسم الإدخال.القيمة.تريم() || الاسم المحفوظ || "ScarzBots") : (الاسم المحفوظ || "ScarzBots");
+            إذا لم يكن (nameInput و! savedName) {
+                localStorage.setItem("scarz-bot-name", "ScarzBots");
+            }
+            هذا.connect();
+        }
+
+        إعادة ضبط() {
+            هذا.ws = لا شيء؛
+            هذا.offsetX = 0؛
+            هذا.offsetY = 0؛
+            هذا.isAlive = خطأ؛
+            هذا.متصل = خطأ؛
+            هذا.playerCells = []؛
+            هذا.مفتاح التشفير = 0؛
+            هذا.decryptionKey = 0؛
+            هذا.serverVersion = null؛
+            هذا.followMouse = خطأ؛
+            هذا.myCellIDs = []؛
+            هذا.errorTimeout = null؛
+            this.followMouseTimeout = null؛
+            هذا.targetX = null؛
+            هذا.targetY = null؛
+        }
+
+        يتصل() {
+            إذا (هذه المحاولات للاتصال >= هذه المحاولات للاتصال الأقصى) {
+                هذا.توقف();
+                يعود؛
+            }
+            هذه المحاولات للاتصال++؛
+            هذا.إعادة تعيين();
+            إذا لم يتوقف هذا
+                this.ws = new WebSocket(this.config.agarServer);
+                هذا.ws.binaryType = "arraybuffer";
+                هذا.ws.onopen = هذا.onopen.bind(هذا);
+                هذا.ws.onclose = هذا.onclose.bind(هذا);
+                هذا.ws.onerror = هذا.onerror.bind(هذا);
+                هذا.ws.onmessage = هذا.onmessage.bind(هذا);
+                هذا.متصل = صحيح؛
+                هذا.lastActiveTime = Date.now();
+            }
+        }
+
+        على الفتح () {
+            هذا.lastActiveTime = Date.now();
+            هذه المحاولات = 0؛
+            هذا.sendProtocolVersion();
+            هذا.sendClientVersion();
+        }
+
+        عند الإغلاق () {
+            هذا.متصل = خطأ؛
+            هذا.handleReconnection();
+        }
+
+        عند حدوث خطأ () {
+            هذا.errorTimeout = setTimeout(() => {
+                إذا (هذا.ws؟.readyState === WebSocket.CONNECTING || هذا.ws؟.readyState === WebSocket.OPEN) {
+                    هذا.ws.إغلاق();
+                }
+            }, 1000);
+        }
+
+        إرسال(البيانات) {
+            إذا (هذا.ws و هذا.ws.readyState === WebSocket.OPEN) {
+                إذا (هذا مفتاح التشفير) {
+                    البيانات = this.xorBuffer(البيانات، this.encryptionKey)؛
+                    هذا.مفتاح التشفير = هذا.مفتاح التدوير(هذا.مفتاح التشفير)؛
+                }
+                هذا.ws.send(البيانات)؛
+                هذا.lastActiveTime = Date.now();
+            } آخر {
+                console.warn('WebSocket غير مفتوح، لا يمكن إرسال البيانات');
+            }
+        }
+
+        onmessage(الحدث) {
+            هذا.lastActiveTime = Date.now();
+            دع البيانات = event.data؛
+            إذا (مفتاح فك التشفير هذا) {
+                البيانات = this.xorBuffer(البيانات، this.decryptionKey ^ this.clientVersion)؛
+            }
+            هذا.handleBuffer(البيانات)؛
+        }
+
+        مقبض المخزن المؤقت (المخزن المؤقت) {
+            قارئ ثابت = قارئ جديد (مخزن مؤقت)؛
+            التبديل (القارئ.readUint8()) {
+                الحالة 32:
+                    هذا.myCellIDs.push(القارئ.readUint32());
+                    إذا لم يكن هذا حيًا
+                        هذا.isAlive = صحيح؛
+                        إذا لم يكن (this.config.startedBots و this.config.stoppedBots) {
+                            هذا.config.startedBots = صحيح؛
+                        }
+                    }
+                    هذا.moveInt = setInterval(() => {
+                        هذا.move(هذا.config.cords);
+                    }, 17);
+                    إذا لم يكن هذا.followMouseTimeout) {
+                        هذا.followMouseTimeout = setTimeout(() => {
+                            إذا (هذا. هو حي) {
+                                هذا.followMouse = صحيح؛
+                            }
+                        }, 16000);
+                    }
+                    استراحة؛
+                القضية رقم 241:
+                    هذا.مفتاح فك التشفير = reader.readUint32();
+                    هذا.serverVersion = reader.readString();
+                    هذا.مفتاح التشفير = هذا.مرمر2("" + هذا.تكوين.أجارخادم.مباراة(/wss:\/\/(ويب-اريناس-لايف-[\w-]+\.أجاريو\.مينيكليبت\.كوم\/[\w-]+\/[\d-]+)/)[1] + هذا.إصدار الخادم، 255)؛
+                    استراحة؛
+                القضية رقم 242:
+                    هذا.sendSpawn();
+                    استراحة؛
+                الحالة رقم 255:
+                    هذه.handleMessage(هذه.uncompressMessage(مجموعة Uint8 جديدة(reader.dataView.buffer.slice(5))، مجموعة Uint8 جديدة(reader.readUint32())).buffer);
+                    استراحة؛
+            }
+        }
+
+        handleMessage(المخزن المؤقت) {
+            قارئ ثابت = قارئ جديد (مخزن مؤقت)؛
+            التبديل (القارئ.readUint8()) {
+                الحالة 16:
+                    هذا.updateNodes(القارئ)؛
+                    استراحة؛
+                الحالة 64:
+                    هذا.updateOffset(القارئ)؛
+                    استراحة؛
+            }
+        }
+
+        updateOffset(القارئ) {
+            ثابت minX = reader.readFloat64();
+            ثابت minY = reader.readFloat64();
+            ثابت maxX = reader.readFloat64();
+            ثابت maxY = reader.readFloat64();
+            إذا (maxX - minX > 14000) {
+                هذا.offsetX = (maxX + minX) / 2؛
+            }
+            إذا (الحد الأقصى Y - الحد الأدنى Y > 14000) {
+                هذا.offsetY = (الحد الأقصى لـY + الحد الأدنى لـY) / 2؛
+            }
+        }
+
+        تحديث العقد(القارئ) {
+            عدد العقد الثابت = reader.readUint16();
+            بالنسبة إلى (دعنا نقول i = 0؛ i < nodeCount؛ i++) {
+                القارئ.byteOffset += 8؛
+            }
+            ل (؛؛) {
+                معرف الكيان الثابت = reader.readUint32();
+                إذا (معرف الكيان === 0) فواصل؛
+                كيان ثابت = كيان جديد();
+                معرف الكيان = معرف الكيان؛
+                الكيان.x = reader.readInt32();
+                الكيان.y = reader.readInt32();
+                الكيان.الحجم = القارئ.readUint16();
+                الأعلام الثابتة = reader.readUint8();
+                const extendedFlags = flags & 128 ? reader.readUint8() : 0;
+                إذا (الأعلام و 1) entity.isVirus = true؛
+                إذا (الأعلام و 2) reader.byteOffset += 3؛
+                إذا (الأعلام و 4) reader.readString();
+                إذا (الأعلام و 8) entity.name = decodeURIComponent(escape(reader.readString()));
+                إذا (extendedFlags & 1) entity.isPellet = true؛
+                إذا (extendedFlags & 2) entity.isFriend = true؛
+                إذا (extendedFlags & 4) reader.byteOffset += 4؛
+                this.playerCells[entity.id] = كيان؛
+            }
+            ثابت removedNodeCount = reader.readUint16();
+            بالنسبة إلى (دعنا نقول i = 0؛ i < removedNodeCount؛ i++) {
+                ثابت removedId = reader.readUint32();
+                إذا (هذا.myCellIDs.includes(removedId)) {
+                    هذا.myCellIDs.splice(هذا.myCellIDs.indexOf(المعرف الذي تمت إزالته)، 1)؛
+                }
+                احذف هذا.playerCells[removedId]؛
+            }
+            إذا (هذا.isAlive و this.myCellIDs.length === 0) {
+                هذا.isAlive = خطأ؛
+                إذا (هذا.followMouseTimeout) {
+                    clearTimeout(هذا.followMouseTimeout);
+                    this.followMouseTimeout = null؛
+                }
+                هذا.followMouse = خطأ؛
+                هذا.sendSpawn();
+            }
+        }
+
+        احسب المسافة (x1، y1، x2، y2) {
+            إرجاع Math.hypot(x2 - x1، y2 - y1)؛
+        }
+
+        نقل({x, y}) {
+            إذا (هذا. lastMoveTime && Date.now() - هذا. lastMoveTime < 100) ارجع؛
+            this.lastMoveTime = Date.now();
+            ثابت AverageCell = { x: 0، y: 0، الحجم: 0 }؛
+            ثابت {minAvoidDistance، escapeDistance، virusAvoidDistance} = this.config؛
+            هذا.myCellIDs.لكل(معرف الخلية => {
+                خلية ثابتة = this.playerCells[معرف الخلية]؛
+                إذا (الخلية) {
+                    متوسط الخلية.x += الخلية.x / هذا.معرفات الخلية الخاصة بي.الطول؛
+                    متوسط الخلية.y += الخلية.y / هذا.معرفات الخلية الخاصة بي.الطول؛
+                    متوسط حجم الخلية += حجم الخلية؛
+                }
+            });
+
+            دع closestPellet = null؛
+            دع أقرب مسافة للحبيبات = ما لا نهاية؛
+            دع closestVirus = null؛
+            دع أقرب مسافة للفيروس = ما لا نهاية؛
+            دع closestBiggerPlayer = null؛
+            دع أقرب مسافة للاعب الأكبر = ما لا نهاية؛
+            لـ (كيان ثابت من Object.values(this.playerCells)) {
+                دع shouldAvoid = false؛
+                دع المسافة = this.calculateDistance(averageCell.x, averageCell.y, entity.x, entity.y);
+                إذا لم يكن (entity.isFriend و!entity.isVirus و!entity.isPellet و!entity.name) {
+                    shouldAvoid = صحيح؛
+                } وإلا إذا (!entity.isPellet && !entity.isFriend && entity.isVirus && !entity.name) {
+                    إذا (المسافة < أقرب مسافة للفيروس) {
+                        أقرب مسافة للفيروس = المسافة؛
+                        أقرب فيروس = كيان؛
+                    }
+                } وإلا إذا لم يكن (!entity.isVirus و!entity.isPellet و!entity.isFriend و& entity.name.length > 0 و& entity.size > averageCell.size * 1.15) {
+                    shouldAvoid = صحيح؛
+                } وإلا إذا (!entity.isFriend && !entity.isVirus && !entity.isPellet && entity.name.length === 0 && entity.size > averageCell.size && distance < closerBiggerPlayerDistance) {
+                    closestBiggerPlayerDistance = المسافة؛
+                    closestBiggerPlayer = الكيان؛
+                }
+                إذا (يجب تجنب && المسافة < أقرب مسافة للحبيبات) {
+                    أقرب مسافة للحبيبات = المسافة؛
+                    closestPellet = الكيان؛
+                }
+            }
+
+            ثابت الكشف المدى = متوسط حجم الخلية * 1.5؛
+
+            إذا (هذا.config.vShield وaverageCell.size >= 133 وcloseVirus) {
+                هذا.moveTo(أقرب فيروس.x، أقرب فيروس.y، هذا.مفتاح فك التشفير)؛
+                يعود؛
+            }
+
+            إذا لم يكن هذا الهدف X || لم يكن هذا الهدف Y) {
+                هذا.targetX = averageCell.x؛
+                هذا.targetY = averageCell.y؛
+            }
+
+            إذا (أقرب لاعب أكبر و أقرب مسافة للاعب أكبر < 300 + نطاق الكشف) {
+                زاوية ثابتة = Math.atan2(averageCell.y - closestBiggerPlayer.y، averageCell.x - closestBiggerPlayer.x)؛
+                ثابت avoidX = averageCell.x + Math.floor(مسافة الهروب * Math.cos(الزاوية));
+                ثابت avoidY = averageCell.y + Math.floor(مسافة الهروب * Math.sin(الزاوية));
+                هذا.targetX = هذا.targetX * 0.7 + avoidX * 0.3؛
+                هذا.targetY = هذا.targetY * 0.7 + avoidY * 0.3؛
+                هذا.moveTo(هذا.targetX، هذا.targetY، هذا.مفتاح فك التشفير)؛
+                يعود؛
+            }
+
+            إذا لم يكن هذا.followMouse و! this.config.vShield و this.config.botAi و أقرب فيروس و أقرب مسافة فيروس < مسافة تجنب الفيروس و متوسط حجم الخلية >= أقرب حجم فيروس * الحد الأدنى لمسافة تجنب الفيروس) {
+                زاوية ثابتة = Math.atan2(متوسط الخلية.y - أقرب فيروس.y، متوسط الخلية.x - أقرب فيروس.x)؛
+                ثابت avoidX = averageCell.x + Math.floor(virusAvoidDistance * Math.cos(الزاوية));
+                ثابت avoidY = averageCell.y + Math.floor(virusAvoidDistance * Math.sin(الزاوية));
+                هذا.targetX = هذا.targetX * 0.7 + avoidX * 0.3؛
+                هذا.targetY = هذا.targetY * 0.7 + avoidY * 0.3؛
+                هذا.moveTo(هذا.targetX، هذا.targetY، هذا.مفتاح فك التشفير)؛
+                يعود؛
+            }
+
+            إذا (هذا.followMouse و! هذا.config.botAi وaverageCell.size >= 85) {
+                هذا.targetX = هذا.targetX * 0.7 + (x + هذا.offsetX) * 0.3؛
+                هذا.الهدفY = هذا.الهدفY * 0.7 + (y + هذا.الإزاحةY) * 0.3؛
+                هذا.moveTo(هذا.targetX، هذا.targetY، هذا.مفتاح فك التشفير)؛
+                يعود؛
+            }
+
+            إذا (أقرب بيليه و أقرب بيليه. هو بيليه) {
+                لو (
+                    هذا.config.botAi &&
+                    أقرب فيروس &&
+                    هذا. حساب المسافة (أقرب بيليه.x، أقرب بيليه.y، أقرب فيروس.x، أقرب فيروس.y) < مسافة تجنب الفيروس
+                    متوسط حجم الخلية >= أقرب حجم للفيروس * الحد الأدنى لمسافة التجنب
+                ) {
+                    دع alternativePellet = null؛
+                    دع alternativeDist = Infinity؛
+                    لـ (حبات ثابتة من Object.values(this.playerCells)) {
+                        إذا (!pellet.isFriend && !pellet.isVirus && pellet.isPellet && !pellet.name) {
+                            ثابت distToVirus = هذا. حساب المسافة (pellet.x، pellet.y، أقرب فيروس.x، أقرب فيروس.y)؛
+                            إذا (distToVirus >= virusAvoidDistance) {
+                                ثابت المسافة إلى الخلية = هذا. حساب المسافة (متوسط الخلية.x، متوسط الخلية.y، pellet.x، pellet.y)؛
+                                إذا (distToCell < alternativeDist) {
+                                    البديلDist = distToCell؛
+                                    بديل بيليه = حبيبات؛
+                                }
+                            }
+                        }
+                    }
+                    إذا (البديل بيليت) {
+                        هذا.targetX = هذا.targetX * 0.7 + alternativePellet.x * 0.3؛
+                        هذا.targetY = هذا.targetY * 0.7 + alternativePellet.y * 0.3؛
+                        هذا.moveTo(هذا.targetX، هذا.targetY، هذا.مفتاح فك التشفير)؛
+                    } آخر {
+                        ثابت randomX = Math.floor(Math.random() * 1337);
+                        ثابت عشوائي Y = Math.floor(Math.random() * 1337);
+                        ثابت اتجاه عشوائي = Math.random() > 0.5؛
+                        هذا.targetX = هذا.targetX * 0.7 + (averageCell.x + (اتجاه عشوائي؟ randomX: -randomX)) * 0.3؛
+                        هذا.targetY = هذا.targetY * 0.7 + (averageCell.y + (اتجاه عشوائي؟ -randomY: randomY)) * 0.3؛
+                        هذا.moveTo(هذا.targetX، هذا.targetY، هذا.مفتاح فك التشفير)؛
+                    }
+                } آخر {
+                    هذا.targetX = هذا.targetX * 0.7 + closestPellet.x * 0.3؛
+                    هذا.targetY = هذا.targetY * 0.7 + closestPellet.y * 0.3؛
+                    هذا.moveTo(هذا.targetX، هذا.targetY، هذا.مفتاح فك التشفير)؛
+                }
+                يعود؛
+            }
+
+            ثابت randomX = Math.floor(Math.random() * 1337);
+            ثابت عشوائي Y = Math.floor(Math.random() * 1337);
+            ثابت اتجاه عشوائي = Math.random() > 0.5؛
+            هذا.targetX = هذا.targetX * 0.7 + (averageCell.x + (اتجاه عشوائي؟ randomX: -randomX)) * 0.3؛
+            هذا.targetY = هذا.targetY * 0.7 + (averageCell.y + (اتجاه عشوائي؟ -randomY: randomY)) * 0.3؛
+            هذا.moveTo(هذا.targetX، هذا.targetY، هذا.مفتاح فك التشفير)؛
+        }
+
+        إرسال إصدار البروتوكول () {
+            ثابت الكاتب = كاتب جديد(5)؛
+            كاتب.writeUint8(254)؛
+            الكاتب.writeUint32(هذا.إصدار البروتوكول)؛
+            إذا كان (هذا.ws) هذا.ws.send(جديد Uint8Array(writer.dataView.buffer).buffer);
+        }
+
+        إرسال إصدار العميل () {
+            ثابت الكاتب = كاتب جديد(5)؛
+            كاتب.writeUint8(255)؛
+            الكاتب.writeUint32(هذا.إصدار العميل)؛
+            إذا كان (هذا.ws) هذا.ws.send(جديد Uint8Array(writer.dataView.buffer).buffer);
+        }
+
+        إرسال () {
+            اسم ثابت = هذا الاسم؛
+            ثابت الكاتب = كاتب جديد(الاسم.الطول * 3)؛
+            كاتب.writeUint8(0);
+            كاتب.writeString(الاسم)؛
+            هذا.إرسال(Uint8Array جديد(writer.dataView.buffer).buffer);
+        }
+
+        نقل إلى (x، y، مفتاح) {
+            ثابت الكاتب = كاتب جديد(13)؛
+            كاتب.writeUint8(16)؛
+            كاتب.writeInt32(x);
+            كاتب.writeInt32(y)؛
+            الكاتب.writeUint32(المفتاح)؛
+            هذا.إرسال(Uint8Array جديد(writer.dataView.buffer).buffer);
+        }
+
+        ينقسم() {
+            هذا.إرسال(جديد Uint8Array([17]).buffer);
+        }
+
+        إخراج () {
+            هذا.إرسال(جديد Uint8Array([21]).buffer);
+        }
+
+        تدوير المفتاح (المفتاح) {
+            المفتاح = Math.imul(المفتاح، 1540483477) >> 0؛
+            المفتاح = Math.imul(المفتاح >>> 24 ^ المفتاح، 1540483477) >> 0 ^ 114296087؛
+            المفتاح = Math.imul(المفتاح >>> 13 ^ المفتاح، 1540483477) >> 0؛
+            مفتاح العودة >>> 15 ^ مفتاح؛
+        }
+
+        xorBuffer(المخزن المؤقت، المفتاح) {
+            ثابت dataView = جديد DataView(المخزن المؤقت)؛
+            بالنسبة إلى (دعنا نقول i = 0؛ i < dataView.byteLength؛ i++) {
+                dataView.setUint8(i، dataView.getUint8(i) ^ مفتاح >>> i % 4 * 8 & 255)؛
+            }
+            مخزن العودة؛
+        }
+
+        uncompressMessage(مضغوط، إخراج) {
+            بالنسبة إلى (دعنا نقول i = 0، j = 0؛ i < compressed.length؛) {
+                رمز ثابت = مضغوط[i++]؛
+                دع literalLength = الرمز المميز >> 4؛
+                إذا (الطول الحرفي > 0) {
+                    دع extendedLength = literalLength + 240؛
+                    بالنسبة إلى (؛ extendedLength === 255؛) {
+                        extendedLength = compressed[i++];
+                        الطول الحرفي += الطول الممتد؛
+                    }
+                    ثابت النهاية = i + الطول الحرفي؛
+                    بالنسبة إلى (; i < end;) output[j++] = compressed[i++];
+                    إذا (i === compressed.length) قم بإرجاع الناتج؛
+                }
+                ثابت الإزاحة = مضغوط[i++] | مضغوط[i++] << 8؛
+                إذا (الإزاحة === 0 || الإزاحة > j) ارجع -(i - 2)؛
+                دع matchLength = token & 15؛
+                دع extendedLength = matchLength + 240؛
+                بالنسبة إلى (؛ extendedLength === 255؛) {
+                    extendedLength = compressed[i++];
+                    طول المطابقة += الطول الممتد؛
+                }
+                دع pos = j - الإزاحة؛
+                نهاية ثابتة = j + طول المطابقة + 4؛
+                بالنسبة إلى (; j < end;) output[j++] = output[pos++]؛
+            }
+            عودة الإخراج؛
+        }
+
+        murmur2(str، بذرة) {
+            دع الطول = str.length؛
+            دع h = البذرة ^ الطول؛
+            دع i = 0؛
+            دع ك؛
+            بينما (الطول >= 4) {
+                ك = str.charCodeAt(i) & 255 | (str.charCodeAt(++i) & 255) << 8 | (str.charCodeAt(++i) & 255) << 16 | (str.charCodeAt(++i) & 255) << 24؛
+                ك = (ك و 65535) * 1540483477 + (((ك >>> 16) * 1540483477 و 65535) << 16)؛
+                ك ^= ك >>> 24؛
+                ك = (ك و 65535) * 1540483477 + (((ك >>> 16) * 1540483477 و 65535) << 16)؛
+                ح = (ح و 65535) * 1540483477 + (((ح >>> 16) * 1540483477 و 65535) << 16) ^ ك؛
+                الطول -= 4؛
+                ++أنا؛
+            }
+            مفتاح (الطول) {
+                الحالة 3: h ^= (str.charCodeAt(i + 2) & 255) << 16؛
+                الحالة 2: h ^= (str.charCodeAt(i + 1) & 255) << 8؛
+                الحالة 1: h ^= str.charCodeAt(i) & 255؛
+                    ح = (ح و 65535) * 1540483477 + (((ح >>> 16) * 1540483477 و 65535) << 16)؛
+            }
+            ح ^= ح >>> 13؛
+            ح = (ح و 65535) * 1540483477 + (((ح >>> 16) * 1540483477 و 65535) << 16)؛
+            ح ^= ح >>> 15؛
+            العودة h >>> 0؛
+        }
+
+        فترات واضحة () {
+            clearInterval(هذا.moveInt);
+        }
+
+        مسح المهلات الزمنية () {
+            إذا (هذا.errorTimeout !== null) clearTimeout(هذا.errorTimeout);
+            إذا (هذا.reconnectTimeout !== null) clearTimeout(هذا.reconnectTimeout);
+        }
+
+        إعادة الاتصال () {
+            إذا لم يتم إعادة الاتصال و !this.config.stoppedBots و !this.stopped) {
+                هذا.isReconnecting = صحيح؛
+                ثابت التذبذب = Math.random() * 100 - 50؛
+                ثابت baseDelay = Math.min(300 * Math.pow(1.5، هذه المحاولات للاتصال)، 2000)؛
+                هذا.reconnectTimeout = setTimeout(() => {
+                    هذا.isReconnecting = false؛
+                    هذا.connect();
+                }, baseDelay + jitter);
+            }
+        }
+
+        قف() {
+            هذا.clearTimeouts();
+            هذا.clearIntervals();
+            إذا (هذا.ws) {
+                هذا.ws.onopen = null؛
+                هذا.ws.onclose = null؛
+                هذا.ws.onerror = null؛
+                هذه الرسالة = لا شيء؛
+                إذا (هذا.ws.readyState === WebSocket.OPEN || هذا.ws.readyState === WebSocket.CONNECTING) {
+                    هذا.ws.إغلاق();
+                }
+                هذا.ws = لا شيء؛
+            }
+            هذا.توقف = صحيح؛
+            هذا.متصل = خطأ؛
+        }
+
+        checkConnectionTimeout() {
+            إذا (هذا. متصل && تاريخ. الآن () - هذا. آخر وقت نشط > 10000) {
+                console.warn('توقف اتصال الروبوت، مما يفرض إعادة الاتصال');
+                هذا.توقف();
+                هذا.handleReconnection();
+            }
+        }
+    }
+
+    دع botCounter = null؛
+    دع botCreationInterval = null؛
+    دع botReplacementInterval = null؛
+    دع connectionTimeoutInterval = null؛
+    دع isStarting = false؛
+
+    ثابت botConfig = {
+        botAi: خطأ،
+        روابط المفاتيح: {
+            مفتاح الوضع: "F"،
+            مفتاح التغذية: "C"،
+            splitKey: "X"،
+            مفتاح vShield: "V"
+        },
+        الحبال: { x: 0، y: 0 }،
+        botCount: parseInt(localStorage.getItem('botAmount')) || 150،
+        agarServer: null،
+        توقف الروبوتات: صحيح،
+        بدأ الروبوتات: خطأ،
+        vShield: خطأ،
+        الحد الأدنى لمسافة التجنب: 1.1،
+        مسافة الهروب: 700،
+        مسافة تجنب الفيروس: 300
+    };
+
+    ثابت الروبوتات = []؛
+
+    دالة startBots(action) {
+        إذا (isStarting) العودة؛
+
+        إذا (الإجراء === 'stfinish' و! botConfig.startedBots وbotConfig.stoppedBots) {
+            isStarting = صحيح؛
+            botConfig.botAi = خطأ؛
+            botConfig.startedBots = صحيح؛
+            botConfig.stoppedBots = false؛
+            تحديث عدد الروبوتات();
+
+            دع startTime = Date.now();
+            دع stopwatchInterval = setInterval(() => {
+                إذا لم يتم تشغيل botConfig.startedBots
+                    clearInterval(فاصل ساعة التوقف)؛
+                    يعود؛
+                }
+                ثابت الوقت المنقضي = Date.now() - وقت البدء؛
+                ساعات ثابتة = Math.floor(الوقت المنقضي / 3600000)؛
+                الدقائق الثابتة = Math.floor((الوقت المنقضي % 3600000) / 60000)؛
+                ثواني ثابتة = Math.floor((الوقت المنقضي % 60000) / 1000)؛
+                ثابت stopwatchElement = document.querySelector("#stopwatch");
+                إذا (عنصر ساعة الإيقاف) {
+                    إذا (الساعات > 0) {
+                        عنصر ساعة التوقف. محتوى النص = `${ساعات. إلى سلسلة(). باد ستارت (2، '0')}:${دقائق. إلى سلسلة(). باد ستارت (2، '0')}:${ثواني. إلى سلسلة(). باد ستارت (2، '0')}`؛
+                    } آخر {
+                        عنصر ساعة التوقف.محتوى النص = `${الدقائق. إلى سلسلة().padStart(2، '0')}:${الثواني. إلى سلسلة().padStart(2، '0')}`;
+                    }
+                }
+            }, 1000);
+
+            botCounter = setInterval(() => {
+            ثابت aliveBots = Bots.filter(bot => bot.isAlive).length؛
+            ثابت متصل Bots = Bots.filter(bot => bot.connected).length؛
+            document.querySelector(".scarz-botCount").textContent = `${connectedBots}-${aliveBots}`;
+            document.querySelector("#status").textContent = "بدأ";
+        }, 200);
+
+            botReplacementInterval = setInterval(() => {
+                استبدال الروبوتات غير المتصلة();
+            }, 5000);
+            وقت انتهاء الاتصال = setInterval(() => {
+                Bots.forEach(bot => bot.checkConnectionTimeout());
+            }, 10000);
+
+            ثابت startButton = document.querySelector(".scarz-stfinish");
+            ثابت stopButton = document.querySelector(".scarz-stop");
+            إذا (زر البدء وزر الإيقاف) {
+                startButton.style.display = "لا شيء";
+                stopButton.style.display = "مضمن";
+                stopButton.classList.remove('نشط');
+                document.querySelector("#status-light").className = "مؤشر الحالة حالة التشغيل";
+                ثابت stopwatchElement = document.querySelector("#stopwatch");
+                إذا (عنصر ساعة الإيقاف) {
+                    stopwatchElement.style.display = "block";
+                }
+            }
+            isStarting = false؛
+        } وإلا إذا (الإجراء === 'إيقاف' و botConfig.startedBots) {
+            Bots.forEach(bot => bot.stop());
+            طول الروبوتات = 0؛
+            clearInterval(botCounter);
+            clearInterval(botReplacementInterval);
+            clearInterval(فاصل زمني للاتصال)؛
+            botCounter = null؛
+            botReplacementInterval = null؛
+            connectionTimeoutInterval = null؛
+            botConfig.botAi = خطأ؛
+            botConfig.stoppedBots = صحيح؛
+            botConfig.startedBots = false؛
+
+            ثابت startButton = document.querySelector(".scarz-stfinish");
+            ثابت stopButton = document.querySelector(".scarz-stop");
+            إذا (زر البدء وزر الإيقاف) {
+                startButton.style.display = "مضمن";
+                startButton.classList.remove('نشط');
+                stopButton.style.display = "لا شيء";
+                stopButton.classList.remove('نشط');
+                document.querySelector(".scarz-botCount").textContent = `${botConfig.botCount}`;
+                document.querySelector("#status").textContent = "متوقف";
+                document.querySelector("#status-light").className = "مؤشر الحالة توقف الحالة";
+            }
+
+            ثابت stopwatchElement = document.querySelector("#stopwatch");
+            إذا (عنصر ساعة الإيقاف) {
+                stopwatchElement.style.display = "لا شيء";
+                stopwatchElement.textContent = "00:00";
+            }
+        }
+    }
+
+    دالة updateBotCount() {
+        إذا لم يتم (botConfig.startedBots) العودة؛
+
+        clearInterval(botCreationInterval);
+        ثابت عدد الروبوتات الحالي = طول الروبوتات؛
+        ثابت targetBotCount = Math.min(botConfig.botCount، CLIENTS_MAX_BOTS)؛
+
+        إذا (عدد الروبوتات الحالي < عدد الروبوتات المستهدف) {
+            دع botCount = currentBotCount؛
+            botCreationInterval = setInterval(() => {
+                إذا (botCount < targetBotCount && botConfig.startedBots && botCount < CLIENTS_MAX_BOTS) {
+                    ثابت bot = جديد Bot(botConfig);
+                    Bots.push(bot)؛
+                    بوتكونت++؛
+                } آخر {
+                    clearInterval(botCreationInterval);
+                    botCreationInterval = null؛
+                }
+            }, 150);
+        } وإلا إذا (عدد الروبوتات الحالي > عدد الروبوتات المستهدف) {
+            بينما (طول الروبوتات > عدد الروبوتات المستهدفة) {
+                ثابت bot = Bots.pop();
+                bot.stop();
+            }
+        }
+    }
+
+    وظيفة replaceDisconnectedBots() {
+        إذا لم يتم (botConfig.startedBots) العودة؛
+
+        ثابت targetBotCount = Math.min(botConfig.botCount، CLIENTS_MAX_BOTS)؛
+        ثابت عدد الروبوتات الحالي = طول الروبوتات؛
+        ثابت الروبوتات المنفصلة = Bots.filter(bot => !bot.connected || bot.connectionAttempts >= bot.maxConnectionAttempts);
+
+        disconnectedBots.forEach(bot => {
+            bot.stop();
+            مؤشر ثابت = Bots.indexOf(bot)؛
+            إذا (المؤشر !== -1) {
+                Bots.splice(الفهرس، 1)؛
+            }
+        });
+
+        ثابت botsToAdd = Math.min(targetBotCount - Bots.length، 5)؛
+        بالنسبة إلى (دعنا نقول i = 0؛ i < botsToAdd؛ i++) {
+            إذا (Bots.length < targetBotCount && botConfig.startedBots) {
+                ثابت bot = جديد Bot(botConfig);
+                Bots.push(bot)؛
+            }
+        }
+    }
+
+    ثابت injectScript = () => {
+        إذا لم يكن (document.body) {
+            document.addEventListener('DOMContentLoaded', () => {
+                إنشاء الحاوية();
+                تحميل ورقة الأنماط();
+                initUI();
+                initWebSocket();
+                initInterval();
+                initKeybinds();
+            });
+        } آخر {
+            إنشاء الحاوية();
+            تحميل ورقة الأنماط();
+            initUI();
+            initWebSocket();
+            initInterval();
+            initKeybinds();
+        }
+    };
+
+    معرف اللوحة الثابت = "scarzbots_" + Math.floor(100 + Math.random() * 900)؛
+
+    ثابت إنشاء الحاوية = () => {
+        دع الحاوية = document.getElementById(panelId)؛
+        إذا لم يكن هناك حاوية
+            الحاوية = document.createElement("div");
+            الحاوية.id = معرف اللوحة؛
+            الحاوية.style.position = "مطلق"؛
+            الحاوية.style.zIndex = "99999999";
+            (document.body || document.documentElement).appendChild(الحاوية);
+        }
+        حاوية العودة؛
+    };
+
+    ثابت loadStylesheet = () => {
+        ثابت النمط = document.createElement("النمط");
+        النمط.النوع = "النص/css";
+        style.textContent = `
+            .لوحة معلومات scarz {
+                ظل الصندوق: 0 4 بكسل 20 بكسل rgba(0، 0، 0، 0.2)؛
+                مؤشر z: 99999999؛
+                الخلفية: rgba(0، 0، 0، 0.3)؛
+                الموضع: ثابت؛
+                أعلى: 20 بكسل؛
+                اليسار: 50٪؛
+                التحويل: translateX(-50%);
+                العرض: مرن؛
+                محاذاة العناصر: المركز؛
+                تبرير المحتوى: المركز؛
+                عائلة الخطوط: 'Inter'، بدون تشعبات؛
+                الحدود: 1 بكسل صلبة rgba(255, 255, 255, 0.1);
+                نصف قطر الحدود: 12 بكسل؛
+                الحشو: 8 بكسل؛
+                أحداث المؤشر: تلقائي؛
+                مرشح الخلفية: طمس (12 بكسل)؛
+                الرؤية: مرئية؛
+                العتامة: 1؛
+            }
+            .scarz-title {
+                الموضع: ثابت؛
+                أعلى: 0 بكسل؛
+                اليسار: 50٪؛
+                التحويل: translateX(-50%);
+                اللون: #ffffff؛
+                حجم الخط: 16 بكسل؛
+                وزن الخط: 600؛
+                عائلة الخطوط: 'Inter'، بدون تشعبات؛
+                ظل النص: 1 بكسل 1 بكسل 0 #000000، -1 بكسل -1 بكسل 0 #000000، 1 بكسل -1 بكسل 0 #000000، -1 بكسل 1 بكسل 0 #000000، 0 0 5 بكسل rgba(255، 255، 255، 0.4)؛
+                مؤشر z: 99999998؛
+                أحداث المؤشر: لا شيء؛
+                الرؤية: مرئية؛
+            }
+            .bot-text {
+                اللون: #ffffff؛
+                حجم الخط: 11 بكسل؛
+                الهامش: 0 8 بكسل؛
+                وزن الخط: 500؛
+                ظل النص: 0 0 5 بكسل rgba(255، 255، 255، 0.4)؛
+            }
+            .زر بوت {
+                الخلفية: تدرج خطي (135 درجة، rgba (0، 0، 0، 0.1)، rgba (0، 0، 0، 0.05))؛
+                اللون: #ffffff؛
+                الحدود: 1 بكسل صلبة rgba(255, 255, 255, 0.2);
+                الحشو: 7 بكسل 12 بكسل؛
+                الهامش: 0 4 بكسل؛
+                المؤشر: المؤشر؛
+                نصف قطر الحدود: 10 بكسل؛
+                الانتقال: كل 0.3 ثانية سهولة؛
+                العرض: مرن؛
+                محاذاة العناصر: المركز؛
+                تبرير المحتوى: المركز؛
+                حجم الخط: 11 بكسل؛
+                وزن الخط: 600؛
+                مرشح الخلفية: طمس (8 بكسل)؛
+                الفجوة: 4 بكسل؛
+            }
+            .زر الروبوت:تحوم {
+                الخلفية: تدرج خطي (135 درجة، rgba (0، 0، 0، 0.15)، rgba (0، 0، 0، 0.1));
+                التحويل: المقياس(1.05)؛
+                ظل الصندوق: 0 4 بكسل 12 بكسل rgba(255، 255، 255، 0.25)؛
+            }
+            .زر بوت.نشط {
+                الخلفية: تدرج خطي (135 درجة، rgba (255، 102، 102، 1)، rgba (204، 51، 51، 1))؛
+                لون الحدود: rgba(255، 77، 77، 0.6)؛
+            }
+            .زر الروبوت: معطل {
+                العتامة: 0.4؛
+                المؤشر: غير مسموح به؛
+            }
+            .زر صغير {
+                الخلفية: تدرج خطي (135 درجة، rgba (0، 0، 0، 0.1)، rgba (0، 0، 0، 0.05))؛
+                اللون: #ffffff؛
+                الحدود: 1 بكسل صلبة rgba(255, 255, 255, 0.2);
+                الحشو: 6 بكسل 10 بكسل؛
+                الهامش: 0 4 بكسل؛
+                المؤشر: المؤشر؛
+                نصف قطر الحدود: 8 بكسل؛
+                الانتقال: كل 0.3 ثانية سهولة؛
+                العرض: مرن؛
+                محاذاة العناصر: المركز؛
+                تبرير المحتوى: المركز؛
+                حجم الخط: 10 بكسل؛
+                وزن الخط: 600؛
+                مرشح الخلفية: طمس (8 بكسل)؛
+                الفجوة: 2 بكسل؛
+            }
+            .زر صغير:تحويم {
+                الخلفية: تدرج خطي (135 درجة، rgba (0، 0، 0، 0.15)، rgba (0، 0، 0، 0.1));
+                التحويل: المقياس(1.05)؛
+                ظل الصندوق: 0 4 بكسل 12 بكسل rgba(255، 255، 255، 0.25)؛
+            }
+            .زر صغير.نشط {
+                الخلفية: تدرج خطي (135 درجة، rgba (255، 102، 102، 1)، rgba (204، 51، 51، 1))؛
+                لون الحدود: rgba(255، 77، 77، 0.6)؛
+            }
+            .حالة الحاوية {
+                الموضع: نسبي؛
+                العرض: كتلة مضمنة؛
+                محاذاة النص: المركز؛
+            }
+            .مؤشر الحالة {
+                العرض: كتلة مضمنة؛
+                العرض: 8 بكسل؛
+                الارتفاع: 8 بكسل؛
+                نصف قطر الحدود: 50٪؛
+                الهامش الأيمن: 5 بكسل؛
+                ظل الصندوق: 0 0 8 بكسل rgba(255، 255، 255، 0.8)؛
+            }
+            .status-غير متصل { لون الخلفية: #ff4d4d؛ }
+            .status-running { لون الخلفية: #4dff88؛ }
+            .status-stopped { لون الخلفية: #ffd966؛ }
+            .status-green { لون الخلفية: #4dff88؛ }
+            .ساعة توقيت {
+                اللون: #ffffff؛
+                حجم الخط: 11 بكسل؛
+                وزن الخط: 500؛
+                ظل النص: 0 0 5 بكسل rgba(255، 255، 255، 0.4)؛
+                العرض: لا يوجد؛
+                الهامش العلوي: 5 بكسل؛
+                محاذاة النص: المركز؛
+            }
+            .الإعدادات-الحاوية {
+                العرض: مرن؛
+                اتجاه مرن: عمود؛
+                الفجوة: 10 بكسل؛
+            }
+            .إعدادات الشبكة {
+                العرض: الشبكة؛
+                أعمدة قالب الشبكة: 1fr 1fr؛
+                الفجوة: 10 بكسل؛
+            }
+            .إعدادات التسمية {
+                الهامش: 5 بكسل 0؛
+                حجم الخط: 12 بكسل؛
+                وزن الخط: 500؛
+                اللون: #ffffff؛
+                ظل النص: 0 0 4 بكسل rgba(255، 255، 255، 0.3)؛
+            }
+            .الإعدادات-الإدخال {
+                العرض: 100%؛
+                الحشو: 6 بكسل 8 بكسل؛
+                الخلفية: rgba(255، 255، 255، 0.3)؛
+                الحدود: 1 بكسل صلبة rgba(255, 255, 255, 0.25);
+                اللون: #ffffff؛
+                نصف قطر الحدود: 6 بكسل؛
+                حجم الخط: 11 بكسل؛
+                الانتقال: كل 0.25 ثانية سهولة؛
+                مرشح الخلفية: طمس (8 بكسل)؛
+            }
+            .الإعدادات-الإدخال:التركيز {
+                لون الحدود: rgba(51، 204، 255، 0.6)؛
+                ظل الصندوق: 0 0 8 بكسل rgba(51، 204، 255، 0.4)؛
+                المخطط التفصيلي: لا يوجد؛
+            }
+            .settings-key-container {
+                العرض: مرن؛
+                اتجاه مرن: عمود؛
+                الفجوة: 12 بكسل؛
+                الهامش العلوي: 10 بكسل؛
+            }
+            .keybind-grid {
+                العرض: الشبكة؛
+                أعمدة قالب الشبكة: 1fr 1fr؛
+                الفجوة: 10 بكسل؛
+                محاذاة العناصر: المركز؛
+            }
+            .keybind-row {
+                العرض: مرن؛
+                محاذاة العناصر: المركز؛
+                تبرير المحتوى: المسافة بين؛
+                الفجوة: 5 بكسل؛
+            }
+            .مفتاح الإعدادات {
+                الحشو: 6 بكسل 10 بكسل؛
+                الخلفية: شفافة؛
+                الحدود: 1 بكسل صلبة rgba(255, 255, 255, 0.25);
+                اللون: #ffffff؛
+                نصف قطر الحدود: 6 بكسل؛
+                حجم الخط: 11 بكسل؛
+                محاذاة النص: المركز؛
+                الحد الأدنى للعرض: 30 بكسل؛
+                العرض: 40 بكسل؛
+            }
+            .keybind-label {
+                اللون: #ffffff؛
+                حجم الخط: 11 بكسل؛
+                وزن الخط: 500؛
+                فليكس-جرو: 1؛
+                محاذاة النص: اليسار؛
+            }
+            .الإعدادات-حفظ {
+                الخلفية: تدرج خطي (135 درجة، rgba (255، 102، 102، 1)، rgba (204، 51، 51، 1))؛
+                اللون: #ffffff؛
+                الحدود: لا يوجد؛
+                الحشو: 8 بكسل 14 بكسل؛
+                المؤشر: المؤشر؛
+                نصف قطر الحدود: 8 بكسل؛
+                حجم الخط: 12 بكسل؛
+                وزن الخط: 600؛
+                محاذاة النص: المركز؛
+                الانتقال: كل 0.25 ثانية سهولة؛
+                الهامش العلوي: 10 بكسل؛
+                مرشح الخلفية: طمس (8 بكسل)؛
+            }
+            .الإعدادات-حفظ:تمرير {
+                الخلفية: تدرج خطي (135 درجة، rgba (255، 128، 128، 1)، rgba (230، 57، 57، 1))؛
+                التحويل: المقياس(1.02)؛
+                ظل الصندوق: 0 3 بكسل 10 بكسل rgba(255، 77، 77، 0.5)؛
+            }
+        `;
+        document.head.appendChild(النمط)؛
+    };
+
+    ثابت initUI = () => {
+        const savedName = localStorage.getItem("scarz-bot-name") || "ScarzBots";
+        ثابت panelHTML = `
+            <div class="scarz-title">روبوتات سكارز</div>
+            <div class="scarz-info-panel">
+                <div class="bot-text status-container">
+                    <span class="status-indicator status-green" id="status-light"></span>
+                    <span id="status">متصل</span>
+                    <div id="stopwatch" class="stopwatch">00:00</div>
+                </div>
+                <div class="bot-text">الروبوتات: <span class="scarz-botCount">${botConfig.botCount}</span></div>
+                <button class="bot-button scarz-stfinish" onclick="window.startBots('stfinish')">âڈ» ابدأ</button>
+                <button class="bot-button scarz-stop" onclick="window.startBots('stop')" style="display: none">← إيقاف</button>
+                <button class="small-button" onclick="window.toggleAIMode()">Ai ${botConfig.botAi ? 'ON' : 'OFF'</button>
+                <button class="small-button" style="margin-left: 8px;" onclick="window.toggleVShield()">Vsh ${botConfig.vShield ? 'ON' : 'OFF'</button>
+                <button class="bot-button" onclick="window.toggleSettings()">أدخل</button>
+            </div>
+        `;
+        حاوية ثابتة = document.getElementById(panelId)؛
+        إذا (الحاوية) {
+            حاوية.innerHTML = PanelHTML؛
+        } آخر {
+            console.error('لم يتم العثور على الحاوية، جاري إعادة محاولة تهيئة واجهة المستخدم...');
+            setTimeout(initUI، 500)؛
+        }
+    };
+
+    window.toggleVShield = () => {
+        botConfig.vShield = !botConfig.vShield؛
+        ثابت vShieldButton = document.querySelector(".small-button:nth-child(6)");
+        إذا (vShieldButton) {
+            vShieldButton.textContent = `Vsh ${botConfig.vShield ? 'ON' : 'OFF'}`;
+            vShieldButton.classList.toggle('نشط', botConfig.vShield);
+        }
+    };
+
+    window.toggleAIMode = () => {
+        botConfig.botAi = !botConfig.botAi؛
+        ثابت aiModeButton = document.querySelector(".small-button:nth-child(5)");
+        إذا (زر وضع ai) {
+            aiModeButton.textContent = `Ai ${botConfig.botAi ? 'ON' : 'OFF'}`;
+            aiModeButton.classList.toggle('نشط', botConfig.botAi);
+        }
+    };
+
+    window.toggleSettings = () => {
+        دع modal = document.getElementById('الإعدادات-modal');
+        إذا (شرطي) {
+            حفظ الإعدادات();
+            modal.remove();
+        } آخر {
+            إنشاء الإعدادات النموذجية();
+        }
+    };
+
+    دالة createSettingsModal() {
+        ثابت نموذجي = document.createElement('div');
+        modal.id = 'الإعدادات-modal';
+        modal.style.cssText = `
+            الموضع: ثابت؛
+            أعلى: 40 بكسل؛
+            اليسار: 50٪؛
+            التحويل: translateX(-50%);
+            الخلفية: rgba(0، 0، 0، 0.3)؛
+            الحشو: 12 بكسل؛
+            الحدود: 1 بكسل صلبة rgba(255, 255, 255, 0.15);
+            نصف قطر الحدود: 12 بكسل؛
+            مؤشر z: 100000000؛
+            اللون: #ffffff؛
+            عائلة الخطوط: 'Inter'، بدون تشعبات؛
+            ظل الصندوق: 0 6 بكسل 25 بكسل rgba(0، 0، 0، 0.3)؛
+            مرشح الخلفية: طمس (12 بكسل)؛
+            العرض: 300 بكسل؛
+            الرؤية: مرئية؛
+        `;
+        modal.innerHTML = `
+            <div class="settings-container">
+                <div class="settings-grid">
+                    <div>
+                        <div class="settings-label">اسم البوت:</div>
+                        <input type="text" id="botName" class="settings-input scarz-nick-input" value="${localStorage.getItem('scarz-bot-name') || 'ScarzBots'}">
+                    </div>
+                    <div>
+                        <div class="settings-label">مبلغ البوت (1-200):</div>
+                        <input type="number" id="botAmount" class="settings-input" min="1" max="200" value="${localStorage.getItem('botAmount') || '150'}">
+                    </div>
+                </div>
+                <div>
+                    <div class="settings-label">روابط المفاتيح:</div>
+                    <div class="settings-key-container">
+                        <div class="keybind-grid">
+                            <div class="keybind-row">
+                                <span class="keybind-label">مفتاح التقسيم:</span>
+                                <span class="settings-key">${botConfig.keybinds.splitKey</span>
+                            </div>
+                            <div class="keybind-row">
+                                <span class="keybind-label">مفتاح التغذية:</span>
+                                <span class="settings-key">${botConfig.keybinds.feedKey</span>
+                            </div>
+                            <div class="keybind-row">
+                                <span class="keybind-label">مفتاح وضع الذكاء الاصطناعي:</span>
+                                <span class="settings-key">${botConfig.keybinds.modeKey</span>
+                            </div>
+                            <div class="keybind-row">
+                                <span class="keybind-label">مفتاح VShield:</span>
+                                <span class="settings-key">${botConfig.keybinds.vShieldKey</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="settings-save" onclick="window.toggleSettings()">حفظ</div>
+            </div>
+        `;
+        المستند.الجسم.appendChild(نموذجي)؛
+        modal.addEventListener('انقر', (e) => {
+            إذا (e.target === modal) {
+                حفظ الإعدادات();
+                modal.remove();
+            }
+        });
+    }
+
+    دالة saveSettings() {
+        ثابت botNameInput = document.getElementById('botName');
+        ثابت botAmountInput = document.getElementById('botAmount');
+        إذا لم يكن (botNameInput || !botAmountInput) ارجع؛
+
+        ثابت botName = botNameInput.value.trim();
+        دع botAmount = parseInt(botAmountInput.value)؛
+
+        إذا (isNaN(botAmount) || botAmount < 1) botAmount = 150؛
+        إذا (botAmount > 200) botAmount = 200؛
+
+        localStorage.setItem('scarz-bot-name', botName || 'ScarzBots');
+        localStorage.setItem('botAmount', botAmount);
+
+        botConfig.botCount = botAmount؛
+
+        Bots.forEach(bot => {
+            bot.name = botName || 'ScarzBots';
+        });
+
+        إذا لم يتم تشغيل botConfig.startedBots
+            document.querySelector(".scarz-botCount").textContent = `${botConfig.botCount}`;
+        }
+        تحديث عدد الروبوتات();
+    }
+
+    دالة initKeybinds() {
+        document.addEventListener('keydown', (e) => {
+            إذا (e.key.toUpperCase() === botConfig.keybinds.modeKey) {
+                window.toggleAIMode();
+            } وإلا إذا (e.key.toUpperCase() === botConfig.keybinds.vShieldKey) {
+                window.toggleVShield();
+            } وإلا إذا (e.key.toUpperCase() === botConfig.keybinds.splitKey) {
+                Bots.forEach(bot => {
+                    إذا (bot.isAlive وbot.connected) {
+                        bot.split();
+                    }
+                });
+            } وإلا إذا (e.key.toUpperCase() === botConfig.keybinds.feedKey) {
+                Bots.forEach(bot => {
+                    إذا (bot.isAlive وbot.connected) {
+                        bot.eject();
+                    }
+                });
+            }
+        });
+    }
+
+    ثابت initWebSocket = () => {
+        const allowedUrls = ["delt.io", "ixagar", "glitch", "socket.io", "firebase", "agartool.io"];
+        ثابت مسموح به = url => allowedUrls.some(المجال => url.includes(المجال));
+        إذا لم يكن (WebSocket.prototype._originalSend) {
+            WebSocket.prototype._originalSend = WebSocket.prototype.send؛
+            WebSocket.prototype.send = دالة (بيانات) {
+                إذا لم يكن مسموحًا به (هذا الرابط) {
+                    botConfig.agarServer = هذا.url؛
+                }
+                WebSocket.prototype._originalSend.call(هذه البيانات)؛
+            };
+        }
+    };
+
+    ثابت initInterval = () => {
+        setInterval(() => {
+            إذا (window.app?.unitManager?.activeUnit?.cursor) {
+                botConfig.cords.x = window.app.unitManager.activeUnit.cursor.x؛
+                botConfig.cords.y = window.app.unitManager.activeUnit.cursor.y؛
+            } وإلا إذا (window.app?.mouse) {
+                botConfig.cords.x = window.app.mouse.x؛
+                botConfig.cords.y = window.app.mouse.y؛
+            }
+        }, 50);
+    };
+
+    إذا (/agar.io/.test(اسم الموقع المضيف)) {
+        const checkApp = setInterval(() => {
+            إذا (نافذة التطبيق) {
+                clearInterval(checkApp);
+                حقن النص البرمجي();
+                window.startBots = startBots؛
+            }
+        }, 100);
+    }
+})();
